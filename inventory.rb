@@ -130,7 +130,7 @@ def update_inv
 
 		# Ensure update file is .csv file
 		if (!update_file.end_with?(".csv"))
-			abort "Invalid file format -- Unable to proceed."
+			abort "Invalid file format -- unable to proceed."
 		else
 			# Attempt to open user csv file. If not found, abort program.
 			begin
@@ -152,25 +152,56 @@ def update_inv
 	# 	db_values << row
 	# end
 
+	# Set variable to determine how many successful updates there were
+	success_count = 0
+
 	# Go through db_values and update Database
 	CSV.foreach(update_file) do |a|
-		# Generate query string, field names, and rows of data from database
-		execute_string = "INSERT INTO items(barcode,item_name,item_category,quantity,price,description) VALUES('#{a[0]}', '#{a[1]}', '#{a[2]}', #{a[3]}, #{a[4]}, '#{a[5]}');"
-		db.execute(execute_string)
+		begin
+			# Generate query string, field names, and rows of data from database
+			execute_string = "INSERT INTO items(barcode,item_name,item_category,quantity,price,description) VALUES('#{a[0]}', '#{a[1]}', '#{a[2]}', #{a[3]}, #{a[4]}, '#{a[5]}');"
+			# Attempt to execute the query string
+			db.execute(execute_string)
+			success_count += 1
+		rescue
+			next
+		end
+	end
+	failed_count = csv_file.count - success_count
+
+	# Get correct pluralization
+	if (success_count == 1)
+		plural_succeed = "record"
+	else
+		plural_succeed = "records"
+	end
+
+	if (failed_count == 1)
+		plural_fail = "was 1 item"
+	else
+		plural_fail = "were #{failed_count} items"
 	end
 	
-	# Update successful
-	puts "Updated #{csv_file.count} database records successfully"
+	# Create success message
+	success_msg = "\nUpdated #{success_count} database #{plural_succeed} successfully."
+
+	# Add message if there were problems updating
+	unless (failed_count == 0)
+		success_msg << "\nThere #{plural_fail} that could not be uploaded to the database.\n\nEither #{update_file} is not formatted propery, or there were duplicates in the database."
+		success_msg << "\nConsider updating each individual record quantity if needed."
+	end
+	# Display update information to user
+	puts success_msg
 	# Close database connection
 	db.close
 end
 
 def format_output
-	puts "+----------------+---------------------------------+-----------------+----------+---------+-----------------------------+"
-	puts "| Barcode".ljust(17) 			<< "| Item Name:".ljust(34) <<
-		 "| Item Category".ljust(18) 	<< "| Quantity".ljust(11) 	<<
-		 "| Price".ljust(10)			<< "| Description".ljust(29) << " |"
-	puts "+----------------+---------------------------------+-----------------+----------+---------+-----------------------------+"
+	puts "+----------------------+------------------------------------------+----------------------+----------+---------+-------------------------------------------+"
+	puts "| Barcode".ljust(23) 			<< "| Item Name:".ljust(43) <<
+		 "| Item Category".ljust(23) 	<< "| Quantity".ljust(11) 	<<
+		 "| Price".ljust(10)			<< "| Description".ljust(43) << " |"
+	puts "+----------------------+------------------------------------------+----------------------+----------+---------+-------------------------------------------+"
 end
 
 
@@ -210,15 +241,15 @@ def load_file(view_option)
 			format_output
 			# Loop through the rows and output data
 			rows.each do |a|
-				print "| #{a[0]}".ljust(17)
-				print "| #{a[1]}".ljust(34)
-				print "| #{a[2]}".ljust(18)
+				print "| #{a[0]}".ljust(23)
+				print "| #{a[1]}".ljust(43)
+				print "| #{a[2]}".ljust(23)
 				print "| #{a[3]}".ljust(11)
 				print "| #{a[4]}".ljust(10)
-				print "| #{a[5]}".ljust(29) << " |"
+				print "| #{a[5]}".ljust(43) << " |"
 				print "\n"
 			end
-			puts "+----------------+---------------------------------+-----------------+----------+---------+-----------------------------+"
+			puts "+----------------------+------------------------------------------+----------------------+----------+---------+-------------------------------------------+"
 		# If user specified an outfile, print to outfile
 		else
 			# Write to file by first opening file and writing over it
@@ -289,9 +320,21 @@ elsif (user_option == '-z' || user_option == '-o')
 	else
 		load_file(true)
 	end
+
+# If user scans barcode or enters one manually into the command line
 else
-	db_contents = load_database
-	print "Barcode number: "
-	input = gets.strip
-	search_inv(input,db_contents)
+	if (user_option != nil)
+		input = user_option
+	else
+		print "Barcode number: "
+		input = gets.strip
+	end
+
+	# Test if barcode is sequence of numbers
+	if (input =~ /^[0-9]{1,20}$/)
+		db_contents = load_database
+		search_inv(input,db_contents)
+	else
+		abort "Usage: ruby inventory.rb [?|-h|help|[-u|-o|-z <infile>|[<outfile>]]]\nBarcode must be only digits 0-9 of maximum length 20."
+	end
 end
