@@ -147,11 +147,6 @@ def update_inv
 	# Create database connection handle
 	db = load_database
 
-	# # Go line-by-line in update_file and store values into array
-	# CSV.foreach(update_file) do |row|
-	# 	db_values << row
-	# end
-
 	# Set variable to determine how many successful updates there were
 	success_count = 0
 
@@ -219,7 +214,7 @@ def load_file(view_option)
 	# Create database connection handle
 	db = load_database
 
-	# Generate query string, field names, and rows of data from database
+	# Generate query string
 	query_string = "SELECT * FROM items"
 
 	# Append query string to check only for quantity = 0
@@ -267,42 +262,50 @@ def load_file(view_option)
 end
 
 
-def new_db_entry
-	puts "You are here"
-end
-
-
 # SEARCH INVENTORY FILE called when user enters "ruby inventory.rb" and gets barcode
-def search_inv(barcode,database_contents)
+def search_inv(barcode,db)
 
-	database_item = ""
-	database_contents.each do |a|
-		if (a[0] == barcode)
-			database_item << "Barcode #{barcode} found in the database. Details are given below.\n"
-			database_item << "   Item Name: #{a[1]}\n"
-			database_item << "   Item Category: #{a[2]}\n"
-			database_item << "   Quantity: #{a[3]}\n"
-			database_item << "   Price: #{a[4]}\n"
-			database_item << "   Description: #{a[5]}\n"
-			database_item << "\n"
-		end
-	end
+	# Initialize variable for user input
+	user_input = ""
+	# Generate query string
+	query_string = "SELECT * FROM items WHERE barcode = '#{barcode}'"
 
-	if (database_item == "")
-		user_input = ""
+	# Run the query and store the data
+	db.query(query_string)
+	field_names = db.fields
+	rows = db.data
 
-		until (user_input == "Y" || user_input == "N")
-			print "Barcode #{barcode} NOT found in the database. Do you want to enter information? [Y/N]: "
-			user_input = gets.strip.upcase
-		end
+	# If item was found in database
+	if (rows.length > 0)
+		# If the quantity of found barcode is zero, give user option to update quantity
+		if (rows[3] == 0)
+			print = "\nBarcode #{barcode} found in the database but has a zero quantity. Do you want to update quantity? [Y/N]: "
 
-		if (user_input == "Y")
-			new_db_entry
+			# Validate user input
+			until (user_input == "Y" || user_input == "N")
+				user_input = gets.strip.upcase
+			end
+
+			# If user chooses yes, call update_db_entry function
+			if (user_input == "Y")
+				update_db_entry
+			end
+			# Else continue with printing information
+		else
+			puts "\nBarcode #{barcode} found in the database. Details are given below:"
+			puts "   Item Name: #{rows[0][1]}"
+			puts "   Item Category: #{rows[0][2]}"
+			puts "   Quantity: #{rows[0][3]}"
+			puts "   Price: #{rows[0][4]}"
+			puts "   Description: #{rows[0][5]}"
 		end
 
 	else
-		puts database_item
+		puts "No items"
 	end
+
+	# Close database connection
+	db.close
 end
 
 
@@ -324,7 +327,7 @@ elsif (user_option == '-z' || user_option == '-o')
 # If user scans barcode or enters one manually into the command line
 else
 	if (user_option != nil)
-		input = user_option
+		input = user_option.strip
 	else
 		print "Barcode number: "
 		input = gets.strip
@@ -332,8 +335,8 @@ else
 
 	# Test if barcode is sequence of numbers
 	if (input =~ /^[0-9]{1,20}$/)
-		db_contents = load_database
-		search_inv(input,db_contents)
+		db_conn = load_database
+		search_inv(input,db_conn)
 	else
 		abort "Usage: ruby inventory.rb [?|-h|help|[-u|-o|-z <infile>|[<outfile>]]]\nBarcode must be only digits 0-9 of maximum length 20."
 	end
